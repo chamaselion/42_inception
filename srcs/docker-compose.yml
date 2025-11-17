@@ -1,0 +1,14 @@
+version: "3.8"
+
+volumes:
+    mariadb:
+    wordpress:
+
+networks:
+    inception:
+
+services:
+    nginx:
+    mangodb:
+    wordpress:
+    
