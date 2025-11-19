@@ -9,6 +9,12 @@ networks:
 
 services:
     nginx:
-    mangodb:
+        build: ./requirements/nginx/.
+        restart: always
+    mariadb: 
+        build: ./requirements/mariadb/.
+        restart: always
     wordpress:
+        build: ./requirements/wordpress/.
+        restart: always
     
