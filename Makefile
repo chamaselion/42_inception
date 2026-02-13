@@ -8,7 +8,7 @@ up:
 down:
 	@docker compose -f ./srcs/docker-compose.yml down
 
-clear:
+clear: down
 	@docker compose -f ./srcs/docker-compose.yml down --remove-orphans || true
 	@docker container ls -aq | xargs -r docker rm -f
 	@docker image ls -aq | xargs -r docker image rm -f

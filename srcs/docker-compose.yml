@@ -1,20 +1,34 @@
-version: "3.8"
-
 volumes:
-    mariadb:
-    wordpress:
+  mariadb:
+  wordpress:
+  nginx_certs:
 
 networks:
-    inception:
+  inception:
+    name: inception
 
 services:
-    nginx:
-        build: ./requirements/nginx/.
-        restart: always
-    mariadb: 
-        build: ./requirements/mariadb/.
-        restart: always
-    wordpress:
-        build: ./requirements/wordpress/.
-        restart: always
+  nginx:
+    build: ./requirements/nginx/.
+    ports:
+      - "443:443"
+    volumes:
+      - nginx_certs:/etc/ssl
+    env_file:
+      - .env
+    networks:
+      - inception
+    restart: always
+
+  mariadb:
+    build: ./requirements/mariadb/.
+    networks:
+      - inception
+    restart: always
+
+  wordpress:
+    build: ./requirements/wordpress/.
+    networks:
+      - inception
+    restart: always
     
