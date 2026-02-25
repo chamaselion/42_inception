@@ -1,12 +1,9 @@
-FROM alpine:3.18
+FROM debian:bookworm
 
-LABEL description="Base image for the wordpress resource"
+RUN apt update
+RUN apt upgrade -y
+RUN apt install -y php-fpm
 
+COPY ./conf/www.conf /etc/php/8.2/fpm/pool.d/.
 
-ENV WORDPRESS_CONF_DIR=/etc/wordpress
-RUN mkdir -p "$WORDPRESS_CONF_DIR"
-
-WORKDIR /usr/src/wordpress
-
-COPY . .
-
+CMD ["php-fpm8.2", "-F"]

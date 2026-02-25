@@ -1,34 +1,17 @@
-volumes:
-  mariadb:
-  wordpress:
-  nginx_certs:
-
-networks:
-  inception:
-    name: inception
+version: "3.8"
 
 services:
   nginx:
     build: ./requirements/nginx/.
+    image: nginx
+    container_name: nginx
     ports:
-      - "443:443"
+      - "80:80"
     volumes:
-      - nginx_certs:/etc/ssl
-    env_file:
-      - .env
-    networks:
-      - inception
-    restart: always
-
-  mariadb:
-    build: ./requirements/mariadb/.
-    networks:
-      - inception
-    restart: always
-
+      - ./web:/var/www/html
   wordpress:
     build: ./requirements/wordpress/.
-    networks:
-      - inception
-    restart: always
-    
+    image: wordpress
+    container_name: wp-php
+    volumes:
+      - ./web:/var/www/html
