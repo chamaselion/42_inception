@@ -1,10 +1,13 @@
-FROM alpine:3.19
-
-LABEL description="Base image for mariadb resource"
-
-RUN apk update && apk upgrade --no-cache
+FROM debian:bookworm
 
 
-WORKDIR /var/lib/mysql
+RUN apt update
+RUN apt upgrade -y
+RUN apt install -y mariadb-server
 
-CMD ["sh"]
+COPY conf/50-server.cnf /etc/mysql/mariadb.conf.d/.
+COPY tools/init.sql /etc/mysql/init.sql
+
+RUN mkdir /run/mysqld
+
+CMD ["mysqld"]

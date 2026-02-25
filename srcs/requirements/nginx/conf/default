@@ -59,8 +59,8 @@ server {
 	#	# With php-fpm (or other unix sockets):
 	#	fastcgi_pass unix:/run/php/php7.4-fpm.sock;
 	#	# With php-cgi (or other tcp sockets):
-		fastcgi_pass 127.0.0.1:9000;
-	#}
+		fastcgi_pass wp-php:9000;
+	}
 
 	# deny access to .htaccess files, if Apache's document root
 	# concurs with nginx's one
@@ -87,5 +87,5 @@ server {
 #
 #	location / {
 #		try_files $uri $uri/ =404;
-#	}
-#}
+	# }
+# }
