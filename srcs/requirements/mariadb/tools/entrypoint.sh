@@ -1,0 +1,88 @@
+#!/bin/bash
+set -e
+
+# Ensure dirs exist and correct ownership before starting mariadbd
+mkdir -p /etc/mysql/mariadb.conf.d /etc/my.cnf.d /run/mysqld /var/lib/mysql
+chown -R mysql:mysql /var/lib/mysql /run/mysqld 2>/dev/null || true
+chmod 750 /var/lib/mysql 2>/dev/null || true
+
+# If Debian-style config exists, create a symlink for any software expecting /etc/my.cnf.d/mariadb-server.cnf
+if [ -f /etc/mysql/mariadb.conf.d/50-server.cnf ] && [ ! -e /etc/my.cnf.d/mariadb-server.cnf ]; then
+    ln -s /etc/mysql/mariadb.conf.d/50-server.cnf /etc/my.cnf.d/mariadb-server.cnf || true
+fi
+
+# Ensure MariaDB is reachable from other containers on the Docker network
+for conf in /etc/mysql/mariadb.conf.d/50-server.cnf /etc/my.cnf.d/mariadb-server.cnf; do
+    [ -f "$conf" ] || continue
+    sed -i -E 's@^bind-address\s*=.*@bind-address = 0.0.0.0@' "$conf" || true
+    if grep -Eq '^skip-networking' "$conf"; then
+        sed -i -E 's@^skip-networking.*@# skip-networking@' "$conf" || true
+    fi
+done
+
+# Initialize on first mount
+if [ ! -e /var/lib/mysql/.firstmount ]; then
+    # Ensure ownership for initialization
+    chown -R mysql:mysql /var/lib/mysql /run/mysqld 2>/dev/null || true
+
+    # Initialize DB files if not present
+    if ! mysql_install_db --datadir=/var/lib/mysql --user=mysql --skip-test-db >/dev/null 2>&1; then
+        mariadb-install-db --datadir=/var/lib/mysql --user=mysql --skip-test-db >/dev/null 2>&1 || true
+    fi
+
+    # Start server in background to run initialization SQL (run as mysql user)
+    mariadbd --datadir=/var/lib/mysql --socket=/run/mysqld/mysqld.sock --user=mysql &
+    mysqld_pid=$!
+
+    # Wait for server socket
+    for i in $(seq 30 -1 0); do
+        mysqladmin --protocol=socket --socket=/run/mysqld/mysqld.sock ping >/dev/null 2>&1 && break
+        sleep 1
+    done
+
+    # Apply repository init SQL if present (with environment substitution)
+    if [ -f /docker-entrypoint-initdb.d/init.sql ]; then
+        envsubst < /docker-entrypoint-initdb.d/init.sql | mysql --protocol=socket -u root || true
+    else
+        MYSQL_DATABASE="${MYSQL_DATABASE:-}"
+        MYSQL_USER="${MYSQL_USER:-}"
+        MYSQL_PASSWORD="${MYSQL_PASSWORD:-}"
+        MYSQL_ROOT_PASSWORD="${MYSQL_ROOT_PASSWORD:-}"
+
+        cat << EOF | mysql --protocol=socket -u root || true
+CREATE DATABASE IF NOT EXISTS \`$MYSQL_DATABASE\`;
+CREATE USER IF NOT EXISTS '$MYSQL_USER'@'%' IDENTIFIED BY '$MYSQL_PASSWORD';
+GRANT ALL PRIVILEGES ON \`$MYSQL_DATABASE\`.* TO '$MYSQL_USER'@'%';
+GRANT ALL PRIVILEGES ON *.* TO 'root'@'%' IDENTIFIED BY '$MYSQL_ROOT_PASSWORD';
+FLUSH PRIVILEGES;
+EOF
+    fi
+
+    # Shutdown temporary server
+    mysqladmin --protocol=socket --socket=/run/mysqld/mysqld.sock -u root shutdown || true
+
+    touch /var/lib/mysql/.firstmount
+fi
+
+# Final ownership fix before exec
+chown -R mysql:mysql /var/lib/mysql /run/mysqld 2>/dev/null || true
+
+MYSQL_DATABASE="${MYSQL_DATABASE:-wordpress}"
+MYSQL_USER="${MYSQL_USER:-wpuser}"
+MYSQL_PASSWORD="${MYSQL_PASSWORD:-wppass}"
+MYSQL_ROOT_PASSWORD="${MYSQL_ROOT_PASSWORD:-rootpass}"
+
+RUNTIME_INIT_FILE="/var/lib/mysql/runtime-init.sql"
+cat << EOF > "$RUNTIME_INIT_FILE"
+CREATE DATABASE IF NOT EXISTS \`$MYSQL_DATABASE\`;
+CREATE USER IF NOT EXISTS '$MYSQL_USER'@'%' IDENTIFIED BY '$MYSQL_PASSWORD';
+ALTER USER '$MYSQL_USER'@'%' IDENTIFIED BY '$MYSQL_PASSWORD';
+GRANT ALL PRIVILEGES ON \`$MYSQL_DATABASE\`.* TO '$MYSQL_USER'@'%';
+GRANT ALL PRIVILEGES ON *.* TO 'root'@'localhost' IDENTIFIED BY '$MYSQL_ROOT_PASSWORD';
+FLUSH PRIVILEGES;
+EOF
+chmod 600 "$RUNTIME_INIT_FILE"
+chown mysql:mysql "$RUNTIME_INIT_FILE" 2>/dev/null || true
+
+# Exec main server
+exec mariadbd --datadir=/var/lib/mysql --socket=/run/mysqld/mysqld.sock --user=mysql --init-file="$RUNTIME_INIT_FILE"
