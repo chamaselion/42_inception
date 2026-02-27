@@ -1,6 +1,8 @@
 #!/bin/bash
 set -e
 
+MARIADB_PORT="${MARIADB_PORT:-3306}"
+
 # Ensure dirs exist and correct ownership before starting mariadbd
 mkdir -p /etc/mysql/mariadb.conf.d /etc/my.cnf.d /run/mysqld /var/lib/mysql
 chown -R mysql:mysql /var/lib/mysql /run/mysqld 2>/dev/null || true
@@ -30,26 +32,17 @@ if [ ! -e /var/lib/mysql/.firstmount ]; then
         mariadb-install-db --datadir=/var/lib/mysql --user=mysql --skip-test-db >/dev/null 2>&1 || true
     fi
 
-    # Start server in background to run initialization SQL (run as mysql user)
-    mariadbd --datadir=/var/lib/mysql --socket=/run/mysqld/mysqld.sock --user=mysql &
-    mysqld_pid=$!
-
-    # Wait for server socket
-    for i in $(seq 30 -1 0); do
-        mysqladmin --protocol=socket --socket=/run/mysqld/mysqld.sock ping >/dev/null 2>&1 && break
-        sleep 1
-    done
-
-    # Apply repository init SQL if present (with environment substitution)
+    # Build first-mount SQL and run bootstrap init without background daemon
+    BOOTSTRAP_SQL_FILE="/var/lib/mysql/bootstrap-init.sql"
     if [ -f /docker-entrypoint-initdb.d/init.sql ]; then
-        envsubst < /docker-entrypoint-initdb.d/init.sql | mysql --protocol=socket -u root || true
+        envsubst < /docker-entrypoint-initdb.d/init.sql > "$BOOTSTRAP_SQL_FILE"
     else
         MYSQL_DATABASE="${MYSQL_DATABASE:-}"
         MYSQL_USER="${MYSQL_USER:-}"
         MYSQL_PASSWORD="${MYSQL_PASSWORD:-}"
         MYSQL_ROOT_PASSWORD="${MYSQL_ROOT_PASSWORD:-}"
 
-        cat << EOF | mysql --protocol=socket -u root || true
+        cat << EOF > "$BOOTSTRAP_SQL_FILE"
 CREATE DATABASE IF NOT EXISTS \`$MYSQL_DATABASE\`;
 CREATE USER IF NOT EXISTS '$MYSQL_USER'@'%' IDENTIFIED BY '$MYSQL_PASSWORD';
 GRANT ALL PRIVILEGES ON \`$MYSQL_DATABASE\`.* TO '$MYSQL_USER'@'%';
@@ -58,8 +51,10 @@ FLUSH PRIVILEGES;
 EOF
     fi
 
-    # Shutdown temporary server
-    mysqladmin --protocol=socket --socket=/run/mysqld/mysqld.sock -u root shutdown || true
+    chmod 600 "$BOOTSTRAP_SQL_FILE"
+    chown mysql:mysql "$BOOTSTRAP_SQL_FILE" 2>/dev/null || true
+    mariadbd --bootstrap --datadir=/var/lib/mysql --user=mysql < "$BOOTSTRAP_SQL_FILE" || true
+    rm -f "$BOOTSTRAP_SQL_FILE"
 
     touch /var/lib/mysql/.firstmount
 fi
@@ -85,4 +80,4 @@ chmod 600 "$RUNTIME_INIT_FILE"
 chown mysql:mysql "$RUNTIME_INIT_FILE" 2>/dev/null || true
 
 # Exec main server
-exec mariadbd --datadir=/var/lib/mysql --socket=/run/mysqld/mysqld.sock --user=mysql --init-file="$RUNTIME_INIT_FILE"
+exec mariadbd --datadir=/var/lib/mysql --socket=/run/mysqld/mysqld.sock --user=mysql --port="$MARIADB_PORT" --init-file="$RUNTIME_INIT_FILE"

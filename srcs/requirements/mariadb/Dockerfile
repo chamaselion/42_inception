@@ -11,6 +11,7 @@ COPY tools/entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
 VOLUME ["/var/lib/mysql"]
-EXPOSE 3306
+ARG MARIADB_PORT=3306
+EXPOSE ${MARIADB_PORT}
 
 ENTRYPOINT [ "entrypoint.sh" ]
