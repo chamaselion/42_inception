@@ -1,22 +1,78 @@
-version: "3.8"
+networks:
+ inception:
+  name: inception
+  driver: bridge
+
+volumes:
+ mariadb:
+  name: mariadb
+  driver: local
+  driver_opts:
+   type: none
+   o: bind
+   device: /home/bszikora/data/mariadb
+ wordpress:
+  name: wordpress
+  driver: local
+  driver_opts:
+   type: none
+   o: bind
+   device: /home/bszikora/data/wordpress
 
 services:
-  nginx:
-    build: ./requirements/nginx/.
-    image: nginx
-    container_name: nginx
-    ports:
-      - "80:80"
-    volumes:
-      - ./web:/var/www/html
-  wordpress:
-    build: ./requirements/wordpress/.
-    image: wordpress
-    container_name: wp-php
-    volumes:
-      - ./web:/var/www/html
-  mariadb:
-    build: ./requirements/mariadb/.
-    image: mariadb
-    container_name: mariadb
-    
+ mariadb:
+  container_name: mariadb
+  build:
+   context: requirements/mariadb
+   args:
+    MARIADB_PORT: ${MARIADB_PORT:-3306}
+  image: mariadb
+  init: true
+  env_file:
+   - .env
+  volumes:
+   - mariadb:/var/lib/mysql
+  networks:
+   - inception
+  restart: always
+
+ nginx:
+  container_name: nginx
+  build: requirements/nginx
+  image: nginx
+  init: true
+  environment:
+   - DOMAIN_NAME=${DOMAIN_NAME}
+  env_file:
+   - .env
+  ports:
+   - "${NGINX_PORT:-443}:${NGINX_PORT:-443}"
+  volumes:
+   - wordpress:/var/www/html
+  networks:
+   - inception
+  depends_on:
+   - wordpress
+   - mariadb
+  restart: always
+
+ wordpress:
+  container_name: wordpress
+  build: requirements/wordpress
+  image: wordpress
+  depends_on:
+   - mariadb
+  init: true
+  
+  env_file:
+    - .env
+  volumes:
+   - wordpress:/var/www/html
+  networks:
+   - inception
+  expose:
+   - "${WP_PHP_PORT:-9000}"
+  restart: always
+
+
+
