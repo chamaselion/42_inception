@@ -49,15 +49,15 @@ Docker is used to package each service with its own runtime dependencies and sta
 - This stack uses a dedicated Compose network to keep traffic scoped and predictable.
 
 #### Docker Volumes vs Bind Mounts
-- Docker named volumes are managed by Docker and are portable and less error-prone for persistence.
+- Docker named volumes are managed by Docker and simplify persistence wiring in Compose.
 - Bind mounts directly map host paths and are more coupled to host filesystem layout.
-- This project persists WordPress and MariaDB data through named volumes.
+- This project uses named volumes that are configured to store data under `/home/bszikora/data/` on the host.
 
 ## Instructions
 ### Prerequisites
 - Linux VM
 - Docker Engine + Docker Compose plugin
-- DNS/hosts mapping for `bszikora.42.fr` to your VM IP
+- Hosts mapping for `bszikora.42.fr` inside the VM
 
 ### Build and run
 From repository root:
@@ -65,6 +65,11 @@ From repository root:
 ```bash
 make
 ```
+
+This target will:
+- Ensure `/etc/hosts` maps `DOMAIN_NAME` (and `www.DOMAIN_NAME`) to `127.0.0.1` (inside the VM)
+- Create host data directories under `/home/bszikora/data/`
+- Run `docker compose` with `srcs/.env` and `srcs/docker-compose.yml`
 
 ### Stop
 ```bash
@@ -81,6 +86,12 @@ make clear
 docker compose -f srcs/docker-compose.yml ps
 ```
 
+### Ports
+Ports are configured in `srcs/.env`:
+- `NGINX_PORT` (public entrypoint) — must remain `443` to satisfy the subject requirement
+- `WP_PHP_PORT` (internal PHP-FPM port)
+- `MARIADB_PORT` (internal MariaDB port)
+
 ## Resources
 - Docker docs: https://docs.docker.com/
 - Docker Compose docs: https://docs.docker.com/compose/
@@ -88,6 +99,13 @@ docker compose -f srcs/docker-compose.yml ps
 - MariaDB docs: https://mariadb.com/kb/en/documentation/
 - WordPress CLI docs: https://developer.wordpress.org/cli/commands/
 - PHP-FPM docs: https://www.php.net/manual/en/install.fpm.php
+- https://www.youtube.com/watch?v=np5WFv-FWvE
+- https://www.docker.com/blog/how-to-dockerize-wordpress/
+- https://www.youtube.com/watch?v=RQgLMKpjI1I
+- https://github.com/Forstman1/inception-42
+- https://www.youtube.com/watch?v=9t9Mp0BGnyI
+- https://medium.com/@ssterdev/inception-guide-42-project-part-i-7e3af15eb671
+- https://docs.docker.com/get-started/docker-concepts/building-images/build-tag-and-publish-an-image/
 
 ### AI usage disclosure
 AI was used for:
