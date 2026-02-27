@@ -27,6 +27,11 @@ Docker is used to package each service with its own runtime dependencies and sta
 - Named volumes for persistent WordPress and database data
 - Environment-variable based runtime configuration
 
+### Operational notes
+- Outgoing email is intentionally disabled in the WordPress container.
+- PHP mail calls are routed to a no-op handler (`/usr/sbin/sendmail -> /bin/true`) to prevent runtime warnings when no mail service is configured.
+- This is expected behavior for this local mandatory setup.
+
 ### Comparisons
 #### Virtual Machines vs Docker
 - Virtual Machines emulate full operating systems with their own kernel-level isolation overhead.

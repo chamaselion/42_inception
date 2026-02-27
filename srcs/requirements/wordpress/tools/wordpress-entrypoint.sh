@@ -3,6 +3,12 @@ set -e
 
 cd /var/www/html || exit 1
 
+if [ -n "$WP_CLI_PHP_ARGS" ]; then
+  export WP_CLI_PHP_ARGS="$WP_CLI_PHP_ARGS -d sendmail_path=/bin/true"
+else
+  export WP_CLI_PHP_ARGS="-d sendmail_path=/bin/true"
+fi
+
 WP_PHP_PORT="${WP_PHP_PORT:-9000}"
 MARIADB_PORT="${MARIADB_PORT:-3306}"
 NGINX_PORT="${NGINX_PORT:-443}"
@@ -40,6 +46,11 @@ if [ ! -e /etc/.firstrun ]; then
 
   if [ -n "$PHP_INI" ]; then
     grep -q '^memory_limit' "$PHP_INI" >/dev/null 2>&1 || echo "memory_limit = 256M" >> "$PHP_INI"
+    if grep -qE '^[;[:space:]]*sendmail_path[[:space:]]*=' "$PHP_INI" >/dev/null 2>&1; then
+      sed -i -E 's|^[;[:space:]]*sendmail_path[[:space:]]*=.*|sendmail_path = /bin/true|' "$PHP_INI"
+    else
+      echo "sendmail_path = /bin/true" >> "$PHP_INI"
+    fi
   fi
 
   touch /etc/.firstrun
